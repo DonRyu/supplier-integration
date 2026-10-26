@@ -1,32 +1,31 @@
-# Supplier Feed Integration Service
+# Supplier Feed Integration
 
-A Spring Boot service that imports product feeds from suppliers in different formats, maps their fields to a single internal product model, and exposes the data through a REST API.
+A Spring Boot app that imports product data from suppliers.
 
-Each supplier sends data in its own shape:
+Each supplier sends data in a different format (CSV or XML) with different field names. This app maps them into one product format, saves them to PostgreSQL, and provides a REST API. Bad rows are skipped and reported, and the rest of the file is still imported.
 
-| Internal field | Supplier A (CSV) | Supplier B (XML) |
-|----------------|------------------|------------------|
-| sku            | `item_no`        | `<sku>`          |
-| name           | `desc`           | `<productName>`  |
-| quantity       | `qty`            | `<stock>`        |
-| price          | `unit_price`     | `<cost>`         |
+**Tech:** Java 21, Spring Boot 3, PostgreSQL, JUnit 5, Mockito, Docker, GitHub Actions
 
-Valid rows are created or updated by SKU. Invalid rows are rejected with a row-level error, and the rest of the feed is still imported.
+## Screenshots
 
-## Tech stack
+![Demo](docs/demo.png)
+![Swagger](docs/swagger.png)
 
-- Java 21, Spring Boot 3, Spring Data JPA
-- PostgreSQL
-- JUnit 5, Mockito, MockMvc
-- Docker Compose, GitHub Actions
-- OpenAPI (Swagger UI)
+## JUnit Tests
 
-## Design
+| Test | What it checks |
+|------|----------------|
+| `CsvFeedMapperTest` | CSV fields map correctly, bad rows are reported, missing columns fail |
+| `XmlFeedMapperTest` | XML fields map correctly, broken XML fails, XXE attacks are blocked |
+| `FeedImportServiceTest` | New products are created, existing ones are updated (Mockito) |
+| `FeedControllerTest` | Upload API returns correct results and errors (MockMvc) |
+| `ProductControllerTest` | Product API returns data and 404 for unknown SKU (MockMvc) |
 
-- `FeedMapper` interface with one implementation per format (`CsvFeedMapper`, `XmlFeedMapper`). `FeedMapperRegistry` picks the mapper at runtime, so adding a new supplier format means adding one class.
-- `FeedImportService` handles the upsert inside a single transaction.
-- `GlobalExceptionHandler` returns RFC 7807 problem details for bad input and missing products.
-- The XML parser disables DOCTYPE declarations to block XXE attacks.
+Run tests:
+
+```bash
+mvn test
+```
 
 ## Run
 
@@ -34,22 +33,4 @@ Valid rows are created or updated by SKU. Invalid rows are rejected with a row-l
 docker compose up -d --build
 ```
 
-- App: http://localhost:8080
-- Swagger UI: http://localhost:8080/swagger-ui.html
-
-Sample feeds are in `samples/`.
-
-## API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/feeds/{supplier}?format=CSV\|XML` | Import a feed file (multipart field `file`) |
-| GET | `/api/products?supplier=` | List products, optionally by supplier |
-| GET | `/api/products/{sku}` | Get one product |
-| GET | `/api/products/low-stock?threshold=10` | Products below a stock threshold |
-
-## Tests
-
-```bash
-mvn test
-```
+Open http://localhost:8080
